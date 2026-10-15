@@ -121,7 +121,7 @@
         <div class="grid">
           <div>
             <label>営業担当者名</label>
-            <input type="text" id="s-user-name" placeholder="例: 山田">
+            <input type="text" id="s-user-name" placeholder="例: 山田" oninput="renderSup()">
           </div>
           <div>
             <label>納品/売り込み対象日</label>
@@ -456,9 +456,20 @@
       await fetchProposals();
     }
 
+    // 安全対策①：確認アラート付き削除
     async function deleteDraft(id) {
+      const target = proposals.find(p => p.id === id);
+      const name = target ? target.product_name : 'この品目';
+      
+      const ok = confirm(`【確認】\n「${name}」の下書きを削除してもよろしいですか？\n※この操作は取り消せません。`);
+      if (!ok) return;
+
       const { error } = await _supabase.from('proposals').delete().eq('id', id);
-      if (!error) await fetchProposals();
+      if (error) {
+        alert('削除に失敗しました: ' + error.message);
+      } else {
+        await fetchProposals();
+      }
     }
 
     function copyProposalToForm(id) {
@@ -573,19 +584,30 @@
         });
       }
       
+      // 入力中の営業担当者名（他人の下書きは消させない制御用）
+      const currentInputStaff = (document.getElementById('s-user-name')?.value || '').trim();
+
       if (!drafts.length) {
         draftTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">下書きはありません</td></tr>';
       } else {
         draftTbody.innerHTML = '';
         drafts.forEach(p => {
           const isNone = p.product_name === '（本日提案なし）';
+          const cleanStaffName = p.user_name.replace('三澤（','').replace('）','').trim();
+          
+          // 安全対策②：入力欄の担当者名と一致している（または管理者の）場合のみ削除ボタンを表示
+          const canDelete = currentProfile?.role === 'admin' || (currentInputStaff && cleanStaffName === currentInputStaff);
+          const deleteBtnHtml = canDelete 
+            ? `<button class="btn btn-ng btn-sm" style="padding:1px 5px;" onclick="deleteDraft('${p.id}')">✕</button>`
+            : `<span style="color:#bbb; font-size:10px;">-</span>`;
+
           draftTbody.innerHTML += `<tr style="${isNone ? 'background:#f0f0f0; color:#888;' : ''}">
-            <td><strong>${p.user_name.replace('三澤（','').replace('）','')}</strong></td>
+            <td><strong>${cleanStaffName}</strong></td>
             <td>${p.target_date ? p.target_date.slice(5) : '-'}</td>
             <td><strong>${p.product_name}</strong><br><span style="font-size:9px;color:#666;">${p.spec||'-'}</span></td>
             <td>${isNone ? '-' : '￥' + p.proposed_price.toLocaleString()}</td>
             <td>${p.limited_quantity || '-'}</td>
-            <td style="text-align:center;"><button class="btn btn-ng btn-sm" style="padding:1px 5px;" onclick="deleteDraft('${p.id}')">✕</button></td>
+            <td style="text-align:center;">${deleteBtnHtml}</td>
           </tr>`;
         });
       }
@@ -681,7 +703,6 @@
         const propPriceStr = p.proposed_price ? '￥' + p.proposed_price.toLocaleString() : '￥0';
         const finalPriceStr = p.final_price ? '￥' + p.final_price.toLocaleString() : '￥0';
 
-        // spec (例: "青森/28玉 / 10入") から「産地/規格」と「入数」を綺麗に分離
         let specStr = p.spec || '-';
         let packStr = '-';
         if (specStr.includes(' / ')) {
