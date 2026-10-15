@@ -3,11 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>仲卸・バイヤー価格提案システム</title>
+  <title>価格提案システム</title>
+  
+  <link rel="apple-touch-icon" sizes="180x180" href="/icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon.png">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root { --p: #2c3e50; --s: #3498db; --ok: #27ae60; --ng: #e74c3c; --bg: #f4f6f8; }
     body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 12px; color: #333; }
-    h1 { font-size: 16px; text-align: center; color: var(--p); margin: 4px 0 12px; }
+    h1 { font-size: 16px; text-align: center; color: var(--p); margin: 4px 0 8px; }
+    
+    .login-container { max-width: 360px; margin: 40px auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .login-title { text-align: center; font-size: 18px; font-weight: bold; color: var(--p); margin-bottom: 16px; }
+    
+    .user-bar { background: var(--p); color: #fff; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .logout-btn { background: #e74c3c; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
     .tabs { display: flex; gap: 4px; margin-bottom: 12px; background: #ddd; padding: 3px; border-radius: 8px; }
     .tab { flex: 1; padding: 8px 2px; text-align: center; font-size: 12px; font-weight: bold; background: none; border: none; border-radius: 6px; cursor: pointer; }
     .tab.active { background: #fff; color: var(--p); }
@@ -16,17 +28,29 @@
     label { display: block; font-size: 11px; font-weight: bold; color: #666; margin-top: 6px; }
     input, select { width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-top: 2px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-    .btn { width: 100%; padding: 8px; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; margin-top: 8px; }
+    .btn { width: 100%; padding: 8px; border: none; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer; margin-top: 8px; box-sizing: border-box; }
     .btn-s { background: var(--s); color: #fff; }
     .btn-ok { background: var(--ok); color: #fff; }
     .btn-ng { background: var(--ng); color: #fff; }
-    .btn-del { background: #95a5a6; color: #fff; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
-    .btn-del:active { background: #7f8c8d; }
-    .item-card { border: 1px solid #eee; border-radius: 6px; padding: 10px; margin-bottom: 8px; background: #fff; }
+    .btn-sub { background: #7f8c8d; color: #fff; }
+    .btn-sm { width: auto; padding: 3px 8px; font-size: 11px; margin-top: 0; }
+    
+    .item-card { border: 1px solid #eee; border-radius: 6px; padding: 8px; margin-bottom: 8px; background: #fff; position: relative; }
     .badge { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 10px; color: #fff; font-weight: bold; }
     .bg-ok { background: var(--ok); }
     .bg-ng { background: var(--ng); }
     .bg-wait { background: #f39c12; }
+    
+    .draft-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+    .draft-table th, .draft-table td { border: 1px solid #ddd; padding: 6px 4px; text-align: left; }
+    .draft-table th { background: #f8f9fa; }
+
+    .staff-status-box { background: #eef7fc; border: 1px solid var(--s); border-radius: 6px; padding: 10px; margin-bottom: 12px; }
+    .staff-status-title { font-size: 12px; font-weight: bold; color: var(--p); margin-bottom: 6px; }
+    .staff-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .staff-tag { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: #27ae60; color: #fff; font-weight: bold; }
+    .staff-tag.none { background: #95a5a6; color: #fff; }
+
     .sav-box { background: #eef9f1; border: 1px solid var(--ok); border-radius: 6px; padding: 8px; text-align: center; margin-bottom: 12px; font-size: 12px; }
     .sav-val { font-size: 18px; font-weight: bold; color: var(--ok); }
     .act-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
@@ -34,177 +58,605 @@
     table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px; }
     th, td { border: 1px solid #ddd; padding: 5px; text-align: left; }
     th { background: #eee; }
-    .done { background: #e8f8f5; color: #888; text-decoration: line-through; }
+    
+    .done { background: #e8f8f5; color: #555; }
+    
     .view { display: none; }
     .view.active { display: block; }
+
+    /* 印刷スタイル（白黒・転記用の最適化） */
+    @media print {
+      body { background: #fff; padding: 0; color: #000; }
+      h1, .user-bar, .tabs, .staff-status-box, .btn, .sav-box, #login-screen, .no-print { display: none !important; }
+      .card { box-shadow: none; border: none; padding: 0; margin: 0; }
+      .card-title { border-bottom: 2px solid #000; font-size: 16px; margin-bottom: 10px; }
+      table { width: 100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border: 1px solid #000 !important; padding: 6px; text-align: left; color: #000 !important; }
+      th { background: #f0f0f0 !important; }
+      .done { background: none !important; color: #000 !important; }
+      .print-header { display: block !important; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 12px; }
+      .bold-price { font-weight: bold !important; font-size: 13px !important; }
+    }
+    .print-header { display: none; }
+    .bold-price { font-weight: bold; font-size: 13px; }
   </style>
 </head>
 <body>
 
-  <h1>仲卸・バイヤー価格提案システム</h1>
-
-  <div class="tabs">
-    <button class="tab active" onclick="showView('sup')">① 仲卸担当</button>
-    <button class="tab" onclick="showView('buy')">② バイヤー判定</button>
-    <button class="tab" onclick="showView('clk')">③ 事務員確認</button>
+  <!-- ログイン画面 -->
+  <div id="login-screen" class="login-container">
+    <div class="login-title">🔒 システムログイン</div>
+    <div id="login-error" style="color:var(--ng); font-size:11px; margin-bottom:8px; text-align:center; display:none;"></div>
+    <label>ユーザーID（例: belx , misawa , misawa2 , clerk）</label>
+    <input type="text" id="login-id" placeholder="例: belx">
+    <label>パスワード</label>
+    <input type="password" id="login-pw" placeholder="••••••••">
+    <button class="btn btn-s" style="margin-top:16px;" onclick="handleLogin()">ログイン</button>
   </div>
 
-  <!-- 画面①：仲卸 -->
-  <div id="v-sup" class="view active">
-    <div class="card">
-      <div class="card-title">
-        <span>新規提案</span>
-        <select id="s-user" style="width:auto;" onchange="renderSup()">
-          <option value="Aさん">担当: Aさん</option>
-          <option value="Bさん">担当: Bさん</option>
-          <option value="Cさん">担当: Cさん</option>
-        </select>
+  <!-- メイン画面 -->
+  <div id="app-screen" style="display:none;">
+    <h1>価格提案システム</h1>
+
+    <div class="user-bar">
+      <div>👤 <strong id="user-display-name">---</strong> (<span id="user-role-name">---</span>)</div>
+      <button class="logout-btn" onclick="handleLogout()">ログアウト</button>
+    </div>
+
+    <div class="tabs" id="tab-bar">
+      <button class="tab" id="tab-sup" onclick="showView('sup')">① 仲卸担当</button>
+      <button class="tab" id="tab-buy" onclick="showView('buy')">② バイヤー判定</button>
+      <button class="tab" id="tab-clk" onclick="showView('clk')">③ 事務員確認</button>
+    </div>
+
+    <!-- 画面①：仲卸（営業） -->
+    <div id="v-sup" class="view">
+      <div class="staff-status-box">
+        <div class="staff-status-title">📋 本日の下書き入力状況</div>
+        <div class="staff-tags" id="staff-status-tags"></div>
       </div>
-      <label>商品名</label><input type="text" id="p-name" placeholder="例: サンふじ">
-      <div class="grid">
-        <div><label>産地/規格</label><input type="text" id="p-spec" placeholder="青森/28玉"></div>
-        <div><label>提案単価(円)</label><input type="number" id="p-price" placeholder="3500"></div>
+
+      <div class="card">
+        <div class="card-title">📝 提案品目の入力（一時保存）</div>
+        <div class="grid">
+          <div>
+            <label>営業担当者名</label>
+            <input type="text" id="s-user-name" placeholder="例: 山田">
+          </div>
+          <div>
+            <label>納品/売り込み対象日</label>
+            <input type="date" id="p-target-date" onchange="renderSup()">
+          </div>
+        </div>
+
+        <button class="btn btn-sub" style="margin-top:8px;" onclick="addNoProposalDraft()">🚫 本日は提案なし（完了として登録）</button>
+
+        <div style="background:#f8f9fa; padding:8px; border-radius:6px; border:1px solid #e0e0e0; margin-top:8px;">
+          <label>商品名</label><input type="text" id="p-name" placeholder="例: サンふじ">
+          <div class="grid">
+            <div><label>産地/規格</label><input type="text" id="p-spec" placeholder="例: 青森/28玉"></div>
+            <div><label>入数</label><input type="text" id="p-pack-count" placeholder="例: 10入"></div>
+          </div>
+          <div class="grid">
+            <div><label>提案単価(円)</label><input type="number" id="p-price" placeholder="例: 3500"></div>
+            <div><label>限定数量</label><input type="text" id="p-qty" placeholder="例: 50ケース"></div>
+          </div>
+          <button class="btn btn-s" style="margin-top:8px; background:var(--p);" onclick="addProposalDraft()">下書きリストに追加</button>
+        </div>
+
+        <div style="margin-top:12px;">
+          <div style="font-size:12px; font-weight:bold;">未送信の下書きリスト（公開前）</div>
+          <table class="draft-table">
+            <thead><tr><th>担当</th><th>対象日</th><th>商品/規格/入数</th><th>単価</th><th>数量</th><th>削除</th></tr></thead>
+            <tbody id="draft-list-body"></tbody>
+          </table>
+          <button class="btn btn-ok" style="margin-top:10px;" onclick="publishNowManual()">全員揃ったらバイヤーへ送信する</button>
+        </div>
       </div>
-      <label>限定数量</label><input type="text" id="p-qty" placeholder="例: 50ケース">
-      <button class="btn btn-s" onclick="addProposal()">提案を送信</button>
-    </div>
-    <div class="card">
-      <div class="card-title">自分の提案履歴</div>
-      <div id="sup-list"></div>
-    </div>
-  </div>
 
-  <!-- 画面②：バイヤー -->
-  <div id="v-buy" class="view">
-    <div class="sav-box">差額貯金残高: <span class="sav-val" id="sav-val">￥0</span></div>
-    <div class="card">
-      <div class="card-title">未判定の提案</div>
-      <div id="buy-list"></div>
+      <div class="card">
+        <div class="card-title">送信済みの提案履歴</div>
+        <div id="sup-list-sub-title" style="font-size:11px; color:var(--s); margin-bottom:6px; font-weight:bold;"></div>
+        <div id="sup-list">データ読み込み中...</div>
+      </div>
     </div>
-  </div>
 
-  <!-- 画面③：事務員 -->
-  <div id="v-clk" class="view">
-    <div class="card">
-      <div class="card-title">本日確定データ一覧</div>
-      <table>
-        <thead><tr><th>転記</th><th>担当</th><th>商品/規格</th><th>確定単価</th><th>貯金差額</th></tr></thead>
-        <tbody id="clk-list"></tbody>
-      </table>
+    <!-- 画面②：バイヤー -->
+    <div id="v-buy" class="view">
+      <div class="sav-box">現在の差額貯金残高: <span class="sav-val" id="sav-val-buy">￥0</span></div>
+      <div class="card">
+        <div class="card-title">未判定の提案一覧</div>
+        <div id="buy-list">データ読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- 画面③：事務員 -->
+    <div id="v-clk" class="view">
+      <div class="print-header">📄 確定データチェックリスト（三澤商事 - 価格提案システム）</div>
+
+      <div class="card no-print" style="background:#eef9f1; border:1px solid var(--ok);">
+        <div class="card-title" style="border-bottom-color:var(--ok);">💰 バイヤー差額貯金残高の管理</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:12px; font-weight:bold;">現在の残高:</span>
+          <span class="sav-val" id="sav-val-clk">￥0</span>
+        </div>
+        <label>集計後の貯金残高を直接修正（手動入力）</label>
+        <div style="display:flex; gap:4px; margin-top:2px;">
+          <input type="number" id="manual-savings-input" placeholder="例: 20000" style="background:#fff;">
+          <button class="btn btn-ok btn-sm" style="width:80px; margin:0;" onclick="updateSavingsManual()">残高更新</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>確定データ一覧（転記用）</span>
+          <div class="no-print" style="display:flex; gap:6px;">
+            <button class="btn btn-s btn-sm" style="background:#2c3e50;" onclick="window.print()">🖨️ 紙に印刷する</button>
+            <button class="btn btn-ng btn-sm" onclick="archiveTodayData()">本日分を完了して画面クリア</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th class="no-print">転記</th>
+              <th>対象日</th>
+              <th>商品名</th>
+              <th>産地/規格</th>
+              <th>入数</th>
+              <th>提案価格</th>
+              <th>確定単価</th>
+              <th>限定数量</th>
+              <th>担当</th>
+            </tr>
+          </thead>
+          <tbody id="clk-list"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
   <script>
-    let list = JSON.parse(localStorage.getItem('b2b_p')) || [
-      { id:'1', user:'Aさん', name:'サンふじ', spec:'青森/28玉', price:3200, qty:'30箱', status:'wait', finalPrice:0, diff:0, done:false },
-      { id:'2', user:'Bさん', name:'完熟マンゴー', spec:'宮崎/2L', price:5800, qty:'10箱', status:'wait', finalPrice:0, diff:0, done:false }
-    ];
-    let savings = parseInt(localStorage.getItem('b2b_s')) || 15000;
+    const SUPABASE_URL = 'https://jnpgbngjtcilgqeztoda.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpucGdibmdqdGNpbGdxZXp0b2RhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxOTMwMDksImV4cCI6MjEwMDc2OTAwOX0.YPAt7O-Lmzgure0ga-ARcmY3Ur0yy57kg9oEzs1WuHE';
 
-    function save() {
-      localStorage.setItem('b2b_p', JSON.stringify(list));
-      localStorage.setItem('b2b_s', savings.toString());
-      document.getElementById('sav-val').innerText = '￥' + savings.toLocaleString();
+    let _supabase = null;
+    try {
+      _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch(e) {
+      console.error('Supabase init error:', e);
+    }
+
+    let currentUser = null;
+    let currentProfile = null;
+    let proposals = [];
+    let savingsBalance = 0;
+
+    async function init() {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('p-target-date').value = today;
+
+      try {
+        const { data: { session } } = await _supabase.auth.getSession();
+        if (session && session.user) {
+          currentUser = session.user;
+          await loadUserProfile();
+          return;
+        }
+      } catch(e){}
+      showLoginScreen();
+    }
+
+    async function handleLogin() {
+      let rawId = document.getElementById('login-id').value.trim();
+      const pw = document.getElementById('login-pw').value;
+      const errEl = document.getElementById('login-error');
+      errEl.style.display = 'none';
+
+      if (!rawId || !pw) {
+        errEl.innerText = 'IDとパスワードを入力してください';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      let email = rawId.includes('@') ? rawId : `${rawId}@kakaku.internal`;
+      let { data, error } = await _supabase.auth.signInWithPassword({ email, password: pw });
+      
+      if (error && !rawId.includes('@')) {
+        const altEmail = `${rawId}@kakaku.intenal`;
+        const res = await _supabase.auth.signInWithPassword({ email: altEmail, password: pw });
+        if (!res.error) { data = res.data; error = null; }
+      }
+
+      if (error) {
+        errEl.innerText = 'IDまたはパスワードが正しくありません';
+        errEl.style.display = 'block';
+      } else {
+        currentUser = data.user;
+        await loadUserProfile();
+      }
+    }
+
+    async function handleLogout() {
+      try { await _supabase.auth.signOut(); } catch(e){}
+      currentUser = null;
+      currentProfile = null;
+      showLoginScreen();
+    }
+
+    async function loadUserProfile() {
+      const email = currentUser.email;
+      let role = 'supplier';
+      let displayName = '担当者';
+
+      if (email.startsWith('belx')) {
+        role = 'buyer';
+        displayName = 'ベルクス様 (バイヤー)';
+      } else if (email.startsWith('clerk') || email.startsWith('misawa2')) {
+        role = 'clerk';
+        displayName = '事務担当';
+      } else if (email.startsWith('misawa')) {
+        role = 'supplier';
+        displayName = '三澤商事';
+      } else {
+        role = 'admin';
+        displayName = '管理者';
+      }
+
+      currentProfile = { role, display_name: displayName };
+
+      document.getElementById('user-display-name').innerText = currentProfile.display_name;
+      
+      const savedStaffName = localStorage.getItem('last_staff_name') || '';
+      document.getElementById('s-user-name').value = savedStaffName;
+
+      const roleLabels = { supplier: '仲卸担当', buyer: 'バイヤー', clerk: '事務員', admin: '管理者' };
+      document.getElementById('user-role-name').innerText = roleLabels[currentProfile.role] || '担当者';
+
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'block';
+
+      setupViewByRole(currentProfile.role);
+      await fetchProposals();
+      await fetchSavings();
+
+      setInterval(() => {
+        if (currentUser) {
+          fetchProposals();
+          fetchSavings();
+        }
+      }, 5000);
+    }
+
+    function setupViewByRole(role) {
+      const tabSup = document.getElementById('tab-sup');
+      const tabBuy = document.getElementById('tab-buy');
+      const tabClk = document.getElementById('tab-clk');
+
+      tabSup.style.display = 'none';
+      tabBuy.style.display = 'none';
+      tabClk.style.display = 'none';
+
+      if (role === 'buyer') {
+        tabBuy.style.display = 'block';
+        showView('buy');
+      } else if (role === 'clerk') {
+        tabClk.style.display = 'block';
+        showView('clk');
+      } else if (role === 'admin') {
+        tabSup.style.display = 'block'; tabBuy.style.display = 'block'; tabClk.style.display = 'block';
+        showView('sup');
+      } else {
+        tabSup.style.display = 'block';
+        showView('sup');
+      }
+    }
+
+    function showLoginScreen() {
+      document.getElementById('login-screen').style.display = 'block';
+      document.getElementById('app-screen').style.display = 'none';
     }
 
     function showView(v) {
       document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (v==='sup'&&i===0)||(v==='buy'&&i===1)||(v==='clk'&&i===2)));
       document.querySelectorAll('.view').forEach(e => e.classList.remove('active'));
       document.getElementById('v-' + v).classList.add('active');
-      if(v==='sup') renderSup();
-      if(v==='buy') renderBuy();
-      if(v==='clk') renderClk();
     }
 
-    function addProposal() {
-      const name = document.getElementById('p-name').value;
+    async function fetchProposals() {
+      const { data } = await _supabase.from('proposals').select('*').order('created_at', { ascending: false });
+      if (data) proposals = data;
+      renderSup(); renderBuy(); renderClk();
+    }
+
+    async function fetchSavings() {
+      const { data } = await _supabase.from('savings_bank').select('balance').eq('id', 1).single();
+      if (data) {
+        savingsBalance = data.balance;
+        document.getElementById('sav-val-buy').innerText = '￥' + savingsBalance.toLocaleString();
+        document.getElementById('sav-val-clk').innerText = '￥' + savingsBalance.toLocaleString();
+      }
+    }
+
+    async function addProposalDraft() {
+      const rawStaffName = document.getElementById('s-user-name').value.trim();
+      const targetDate = document.getElementById('p-target-date').value;
+      const name = document.getElementById('p-name').value.trim();
       const price = parseInt(document.getElementById('p-price').value) || 0;
-      if(!name || !price) return alert('商品名と単価を入力してください');
-      
-      list.unshift({
-        id: Date.now().toString(),
-        user: document.getElementById('s-user').value,
-        name, spec: document.getElementById('p-spec').value,
-        price, qty: document.getElementById('p-qty').value,
-        status: 'wait', finalPrice: 0, diff: 0, done: false
-      });
-      save(); renderSup();
+      const spec = document.getElementById('p-spec').value.trim();
+      const packCount = document.getElementById('p-pack-count').value.trim();
+      const qty = document.getElementById('p-qty').value.trim();
+
+      if (!rawStaffName) return alert('営業担当者名を入力してください');
+      if (!name || price <= 0) return alert('商品名と単価を入力してください');
+
+      let combinedSpec = spec;
+      if (packCount) {
+        combinedSpec = spec ? `${spec} / ${packCount}` : packCount;
+      }
+
+      const fullStaffName = rawStaffName.includes('三澤') ? rawStaffName : `三澤（${rawStaffName}）`;
+      localStorage.setItem('last_staff_name', rawStaffName);
+
+      const payload = {
+        user_name: fullStaffName,
+        product_name: name,
+        spec: combinedSpec,
+        proposed_price: price,
+        limited_quantity: qty,
+        target_date: targetDate,
+        status: 'draft',
+        is_archived: false
+      };
+
+      const { error } = await _supabase.from('proposals').insert(payload);
+
+      if (error) {
+        alert('【追加エラー】\n' + error.message);
+        return;
+      }
+
       document.getElementById('p-name').value = '';
+      document.getElementById('p-spec').value = '';
+      document.getElementById('p-pack-count').value = '';
       document.getElementById('p-price').value = '';
-      alert('送信しました！');
+      document.getElementById('p-qty').value = '';
+      document.getElementById('p-name').focus();
+
+      await fetchProposals();
     }
 
-    // 削除確認アラート
-    function deleteProposal(id) {
-      const target = list.find(p => p.id === id);
-      if (!target) return;
+    async function addNoProposalDraft() {
+      const rawStaffName = document.getElementById('s-user-name').value.trim();
+      const targetDate = document.getElementById('p-target-date').value;
 
-      const ok = confirm(`【確認】\n「${target.name}（${target.spec}）」の提案を削除してもよろしいですか？\n※この操作は取り消せません。`);
-      if (ok) {
-        list = list.filter(p => p.id !== id);
-        save();
-        renderSup();
+      if (!rawStaffName) return alert('営業担当者名を入力してください');
+
+      const fullStaffName = rawStaffName.includes('三澤') ? rawStaffName : `三澤（${rawStaffName}）`;
+      localStorage.setItem('last_staff_name', rawStaffName);
+
+      const payload = {
+        user_name: fullStaffName,
+        product_name: '（本日提案なし）',
+        spec: '-',
+        proposed_price: 0,
+        limited_quantity: '-',
+        target_date: targetDate,
+        status: 'draft',
+        is_archived: false
+      };
+
+      const { error } = await _supabase.from('proposals').insert(payload);
+
+      if (error) {
+        alert('【登録エラー】\n' + error.message);
+        return;
+      }
+
+      alert(`${rawStaffName} さんの「本日提案なし」を登録しました！`);
+      await fetchProposals();
+    }
+
+    async function deleteDraft(id) {
+      const { error } = await _supabase.from('proposals').delete().eq('id', id);
+      if (!error) await fetchProposals();
+    }
+
+    function copyProposalToForm(id) {
+      const p = proposals.find(x => x.id === id);
+      if (!p) return;
+
+      document.getElementById('p-name').value = p.product_name || '';
+      document.getElementById('p-spec').value = p.spec || '';
+      document.getElementById('p-pack-count').value = '';
+      document.getElementById('p-price').value = p.proposed_price || '';
+      document.getElementById('p-qty').value = p.limited_quantity || '';
+
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('p-target-date').value = today;
+
+      renderSup();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function publishNowManual() {
+      const drafts = proposals.filter(p => p.status === 'draft');
+      const validDrafts = drafts.filter(p => p.product_name !== '（本日提案なし）');
+
+      if (!drafts.length) return alert('下書きリストに品目がありません');
+
+      if (confirm(`下書きにある提案を送信しますか？`)) {
+        if (validDrafts.length > 0) {
+          const validIds = validDrafts.map(p => p.id);
+          const { error } = await _supabase.from('proposals').update({ status: 'pending' }).in('id', validIds);
+          if (error) return alert('【送信エラー】\n' + error.message);
+        }
+        
+        const noPropIds = drafts.filter(p => p.product_name === '（本日提案なし）').map(p => p.id);
+        if (noPropIds.length > 0) {
+          await _supabase.from('proposals').delete().in('id', noPropIds);
+        }
+
+        await fetchProposals();
+        alert('バイヤーへ送信完了しました！（LINE通知も送信されました）');
+      }
+    }
+
+    async function judge(id, type) {
+      const p = proposals.find(x => x.id === id);
+      const inputEl = document.getElementById(`df-${id}`);
+      const df = parseInt(inputEl?.value) || 0;
+      let status = 'approved', finalPrice = p.proposed_price, diff = 0;
+
+      if (type === 'ng') {
+        status = 'rejected';
+      } else if (type === 'add') {
+        if (df <= 0) return alert('金額を入力してください');
+        finalPrice = p.proposed_price + df; diff = df;
+      } else if (type === 'sub') {
+        if (df <= 0) return alert('金額を入力してください');
+        finalPrice = p.proposed_price - df; diff = -df;
+      }
+
+      await _supabase.from('proposals').update({ status, final_price: finalPrice, savings_diff: diff }).eq('id', id);
+      await fetchProposals();
+    }
+
+    async function updateSavingsManual() {
+      const val = parseInt(document.getElementById('manual-savings-input').value);
+      if (isNaN(val)) return alert('正しい金額を入力してください');
+      await _supabase.from('savings_bank').update({ balance: val }).eq('id', 1);
+      document.getElementById('manual-savings-input').value = '';
+      await fetchSavings();
+      alert('貯金残高を更新しました');
+    }
+
+    async function toggleDone(id, currentDone) {
+      const isDone = (currentDone === true || currentDone === 'true');
+      await _supabase.from('proposals').update({ is_transferred: !isDone }).eq('id', id);
+      await fetchProposals();
+    }
+
+    async function archiveTodayData() {
+      if (confirm('処理済みの提案データを画面から非表示（クリア）にしますか？\n（過去データはデータベースの記録として保持されます）')) {
+        await _supabase.from('proposals').update({ is_archived: true }).in('status', ['approved', 'rejected']);
+        await fetchProposals();
+        alert('全画面の過去提案をクリアしました！');
       }
     }
 
     function renderSup() {
-      const currentUser = document.getElementById('s-user').value;
-      const el = document.getElementById('sup-list');
-      el.innerHTML = '';
+      const draftTbody = document.getElementById('draft-list-body');
+      const drafts = proposals.filter(p => p.status === 'draft');
       
-      // 選択中の担当者のみ表示（他人の提案は触れない）
-      const myProposals = list.filter(p => p.user === currentUser);
+      const finishedStaffs = {};
+      drafts.forEach(p => {
+        const cleanName = p.user_name.replace('三澤（', '').replace('）', '').trim();
+        if (p.product_name === '（本日提案なし）') {
+          if (!finishedStaffs[cleanName]) finishedStaffs[cleanName] = 'none';
+        } else {
+          finishedStaffs[cleanName] = 'has_item';
+        }
+      });
 
-      if(!myProposals.length) {
-        el.innerHTML = '<div style="font-size:12px;color:#888;text-align:center;padding:12px;">提案はありません</div>';
-        return;
+      const statusBox = document.getElementById('staff-status-tags');
+      statusBox.innerHTML = '';
+      const staffKeys = Object.keys(finishedStaffs);
+      if (staffKeys.length === 0) {
+        statusBox.innerHTML = '<span style="font-size:11px; color:#888;">まだ誰も下書きを入力していません</span>';
+      } else {
+        staffKeys.forEach(staff => {
+          if (finishedStaffs[staff] === 'none') {
+            statusBox.innerHTML += `<span class="staff-tag none">👤 ${staff} : 提案なし</span>`;
+          } else {
+            statusBox.innerHTML += `<span class="staff-tag">👤 ${staff} : 済</span>`;
+          }
+        });
+      }
+      
+      if (!drafts.length) {
+        draftTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#888;">下書きはありません</td></tr>';
+      } else {
+        draftTbody.innerHTML = '';
+        drafts.forEach(p => {
+          const isNone = p.product_name === '（本日提案なし）';
+          draftTbody.innerHTML += `<tr style="${isNone ? 'background:#f0f0f0; color:#888;' : ''}">
+            <td><strong>${p.user_name.replace('三澤（','').replace('）','')}</strong></td>
+            <td>${p.target_date ? p.target_date.slice(5) : '-'}</td>
+            <td><strong>${p.product_name}</strong><br><span style="font-size:9px;color:#666;">${p.spec||'-'}</span></td>
+            <td>${isNone ? '-' : '￥' + p.proposed_price.toLocaleString()}</td>
+            <td>${p.limited_quantity || '-'}</td>
+            <td style="text-align:center;"><button class="btn btn-ng btn-sm" style="padding:1px 5px;" onclick="deleteDraft('${p.id}')">✕</button></td>
+          </tr>`;
+        });
       }
 
-      myProposals.forEach(p => {
+      const el = document.getElementById('sup-list');
+      const selectedDate = document.getElementById('p-target-date').value;
+      const subTitleEl = document.getElementById('sup-list-sub-title');
+
+      let published = proposals.filter(p => p.status !== 'draft');
+      if (selectedDate) {
+        published = published.filter(p => p.target_date === selectedDate);
+        subTitleEl.innerText = `📅 【${selectedDate}】 の提案履歴を表示中`;
+      } else {
+        subTitleEl.innerText = `📅 日付を選択してください`;
+      }
+
+      if (!published.length) {
+        return el.innerHTML = `<div style="font-size:12px;color:#888;padding:10px;text-align:center;">
+          ${selectedDate ? selectedDate + ' の提案履歴はありません' : '提案履歴はありません'}
+        </div>`;
+      }
+
+      el.innerHTML = '';
+      published.forEach(p => {
         let b = '<span class="badge bg-wait">判定待ち</span>';
-        if(p.status==='ok') b = `<span class="badge bg-ok">確定(￥${p.finalPrice})</span>`;
-        if(p.status==='ng') b = '<span class="badge bg-ng">NG</span>';
-
-        // 判定待ち（未確定）のときだけ削除ボタンを表示
-        const delBtn = p.status === 'wait' 
-          ? `<button class="btn-del" onclick="deleteProposal('${p.id}')">削除</button>` 
-          : '';
-
-        el.innerHTML += `
-          <div class="item-card">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong>${p.name}</strong>
-              <div style="display:flex; align-items:center; gap:6px;">
-                ${b}
-                ${delBtn}
-              </div>
-            </div>
-            <div style="font-size:11px;color:#666;margin-top:4px;">
-              ${p.spec} | ￥${p.price.toLocaleString()} (${p.qty})
-            </div>
+        if (p.status === 'approved') b = `<span class="badge bg-ok">確定(￥${p.final_price.toLocaleString()})</span>`;
+        else if (p.status === 'rejected') b = '<span class="badge bg-ng">NG</span>';
+        
+        el.innerHTML += `<div class="item-card">
+          <div style="font-size:10px;color:var(--s);font-weight:bold;">${p.target_date || ''} | ${p.user_name}</div>
+          <div style="display:flex;justify-content:space-between;margin-top:2px;">
+            <strong>${p.product_name}</strong>${b}
           </div>
-        `;
+          <div style="font-size:11px;color:#666;margin-bottom:6px;">${p.spec || ''} | ￥${p.proposed_price.toLocaleString()} (${p.limited_quantity || ''})</div>
+          
+          <div style="text-align:right;">
+            <button class="btn btn-s btn-sm" style="background:#8e44ad;" onclick="copyProposalToForm('${p.id}')">📋 この品目を入力欄にコピー</button>
+          </div>
+        </div>`;
       });
     }
 
     function renderBuy() {
-      document.getElementById('sav-val').innerText = '￥' + savings.toLocaleString();
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.tagName === 'INPUT' && activeEl.value.trim() !== '') {
+        return;
+      }
+
       const el = document.getElementById('buy-list');
-      el.innerHTML = '';
-      const waits = list.filter(p => p.status === 'wait');
-      if(!waits.length) return el.innerHTML = '<div style="font-size:12px;color:#888;text-align:center;padding:16px;">未判定の提案はありません</div>';
-      
+      const waits = proposals.filter(p => p.status === 'pending');
+      if (!waits.length) return el.innerHTML = '<div style="font-size:12px;color:#888;text-align:center;">未判定の提案はありません</div>';
+
+      const currentValues = {};
       waits.forEach(p => {
+        const input = document.getElementById(`df-${p.id}`);
+        if (input) currentValues[p.id] = input.value;
+      });
+
+      el.innerHTML = '';
+      waits.forEach(p => {
+        const val = currentValues[p.id] || '';
         el.innerHTML += `<div class="item-card">
-          <div style="font-size:10px;color:var(--s);font-weight:bold;">担当: ${p.user}</div>
-          <strong>${p.name}</strong> (${p.spec})
-          <div style="font-size:12px;">提案単価: <strong>￥${p.price.toLocaleString()}</strong> / ${p.qty}</div>
+          <div style="font-size:11px;color:var(--s);font-weight:bold;">【対象日: ${p.target_date || '未設定'}】 担当: ${p.user_name}</div>
+          <strong style="font-size:14px;">${p.product_name}</strong> (${p.spec || '規格なし'})
+          <div style="font-size:12px;margin:2px 0;">提案単価: <strong>￥${p.proposed_price.toLocaleString()}</strong> / ${p.limited_quantity || ''}</div>
           <div class="act-btns">
             <button class="btn btn-ok" style="margin:0;" onclick="judge('${p.id}','ok')">そのままOK</button>
             <button class="btn btn-ng" style="margin:0;" onclick="judge('${p.id}','ng')">NG</button>
           </div>
           <div class="diff-group">
-            <input type="number" id="df-${p.id}" placeholder="差額(円)">
+            <input type="number" id="df-${p.id}" value="${val}" placeholder="単価差額(円)">
             <button class="btn btn-s" style="margin:0;width:60px;" onclick="judge('${p.id}','add')">+乗せる</button>
             <button class="btn" style="margin:0;width:60px;border:1px solid #888;" onclick="judge('${p.id}','sub')">-使う</button>
           </div>
@@ -212,43 +664,47 @@
       });
     }
 
-    function judge(id, type) {
-      const p = list.find(x => x.id === id);
-      const df = parseInt(document.getElementById(`df-${id}`)?.value) || 0;
-      if(type === 'ok') { p.status = 'ok'; p.finalPrice = p.price; }
-      else if(type === 'ng') { p.status = 'ng'; }
-      else if(type === 'add') {
-        if(df <= 0) return alert('金額を入力してください');
-        p.status = 'ok'; p.finalPrice = p.price + df; p.diff = df; savings += df;
-      } else if(type === 'sub') {
-        if(df <= 0 || df > savings) return alert('貯金残高を確認してください');
-        p.status = 'ok'; p.finalPrice = p.price - df; p.diff = -df; savings -= df;
-      }
-      save(); renderBuy();
-    }
-
     function renderClk() {
       const el = document.getElementById('clk-list');
+      const oks = proposals.filter(p => p.status === 'approved' && !p.is_archived);
+      if (!oks.length) return el.innerHTML = '<tr><td colspan="9" style="text-align:center;">確定データはありませんでした</td></tr>';
+
       el.innerHTML = '';
-      const oks = list.filter(p => p.status === 'ok');
-      if(!oks.length) return el.innerHTML = '<tr><td colspan="5" style="text-align:center;">確定データはありません</td></tr>';
       oks.forEach(p => {
-        el.innerHTML += `<tr class="${p.done ? 'done' : ''}">
-          <td style="text-align:center;"><input type="checkbox" ${p.done?'checked':''} onchange="toggleDone('${p.id}')"></td>
-          <td>${p.user}</td>
-          <td><strong>${p.name}</strong><br><span style="font-size:9px;color:#666;">${p.spec}</span></td>
-          <td>￥${p.finalPrice.toLocaleString()}</td>
-          <td>${p.diff > 0 ? '+￥'+p.diff : (p.diff < 0 ? '-￥'+Math.abs(p.diff) : '0')}</td>
+        let diffText = '';
+        if (p.savings_diff > 0) {
+          diffText = ` <span style="font-size:10px;">(+${p.savings_diff})</span>`;
+        } else if (p.savings_diff < 0) {
+          diffText = ` <span style="font-size:10px;">(-${Math.abs(p.savings_diff)})</span>`;
+        }
+
+        const propPriceStr = p.proposed_price ? '￥' + p.proposed_price.toLocaleString() : '￥0';
+        const finalPriceStr = p.final_price ? '￥' + p.final_price.toLocaleString() : '￥0';
+
+        // spec (例: "青森/28玉 / 10入") から「産地/規格」と「入数」を綺麗に分離
+        let specStr = p.spec || '-';
+        let packStr = '-';
+        if (specStr.includes(' / ')) {
+          const parts = specStr.split(' / ');
+          specStr = parts[0] || '-';
+          packStr = parts[1] || '-';
+        }
+
+        el.innerHTML += `<tr class="${p.is_transferred ? 'done' : ''}">
+          <td class="no-print" style="text-align:center;"><input type="checkbox" ${p.is_transferred ? 'checked' : ''} onchange="toggleDone('${p.id}', '${p.is_transferred}')"></td>
+          <td>${p.target_date ? p.target_date.slice(5) : '-'}</td>
+          <td><strong>${p.product_name}</strong></td>
+          <td>${specStr}</td>
+          <td>${packStr}</td>
+          <td>${propPriceStr}${diffText}</td>
+          <td class="bold-price">${finalPriceStr}</td>
+          <td>${p.limited_quantity || '-'}</td>
+          <td>${p.user_name}</td>
         </tr>`;
       });
     }
 
-    function toggleDone(id) {
-      const p = list.find(x => x.id === id);
-      if(p) { p.done = !p.done; save(); renderClk(); }
-    }
-
-    renderSup();
+    init();
   </script>
 </body>
 </html>
